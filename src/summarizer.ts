@@ -36,15 +36,27 @@ Articles list:
 ${articleList}
 `;
 
-  try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: prompt
-    });
+  const maxAttempts = 3;
+  const delayMs = 1500;
 
-    return response.text || 'Failed to generate summary content.';
-  } catch (error) {
-    console.error('Failed to call Gemini API:', error);
-    throw new Error('Summarizer failed to retrieve summary.');
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt
+      });
+
+      return response.text || 'Failed to generate summary content.';
+    } catch (error) {
+      console.warn(`Gemini API attempt ${attempt} failed:`, error);
+      if (attempt === maxAttempts) {
+        console.error('Max attempts reached. Summarizer failing.');
+        throw error;
+      }
+      // Wait before retrying
+      await new Promise(resolve => setTimeout(resolve, delayMs));
+    }
   }
+
+  throw new Error('Summarizer failed to retrieve summary.');
 }

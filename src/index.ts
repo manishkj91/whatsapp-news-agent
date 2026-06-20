@@ -50,10 +50,14 @@ app.post('/webhook', validateTwilioRequest, async (req: Request, res: Response) 
 
   try {
     // 1. Fetch news
+    console.log('Starting RSS feed aggregation...');
     const items = await fetchAndNormalizeFeeds();
+    console.log(`Successfully fetched and parsed ${items.length} news items.`);
     
     // 2. Generate summary using Gemini
+    console.log('Calling Gemini API to synthesize summary...');
     const summary = await generateNewsSummary(items);
+    console.log('Gemini summary generation complete.');
     
     // 3. Format as TwiML response
     res.type('text/xml');

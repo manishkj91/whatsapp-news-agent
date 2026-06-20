@@ -13,6 +13,17 @@ jest.mock('../summarizer', () => {
   };
 });
 
+const mockCreate = jest.fn();
+jest.mock('twilio', () => {
+  return jest.fn().mockImplementation(() => {
+    return {
+      messages: {
+        create: mockCreate
+      }
+    };
+  });
+});
+
 const mockFetch = fetchAndNormalizeFeeds as jest.Mock;
 const mockSummarize = generateNewsSummary as jest.Mock;
 
@@ -23,11 +34,13 @@ describe('Webhook Server Endpoint', () => {
   beforeEach(() => {
     mockFetch.mockReset();
     mockSummarize.mockReset();
+    mockCreate.mockReset();
 
     req = {
       body: {
         Body: 'news',
-        From: 'whatsapp:+123456789'
+        From: 'whatsapp:+919167030145',
+        To: 'whatsapp:+14155238886'
       },
       headers: {}
     };
@@ -39,9 +52,9 @@ describe('Webhook Server Endpoint', () => {
     };
   });
 
-  it('should respond with TwiML containing the summarized news', async () => {
-    mockFetch.mockResolvedValue([{ title: 'Google News', link: 'https://example.com', source: 'Google', pubDate: new Date(), description: 'details' }]);
-    mockSummarize.mockResolvedValue('*Tech*\n• news bullet');
+  it('should respond immediately with a loading message TwiML response', async () => {
+    mockFetch.mockResolvedValue([]);
+    mockSummarize.mockResolvedValue('Summary');
 
     const { app } = require('../index');
     const webhookRoute = app._router.stack.find((layer: any) => layer.route && layer.route.path === '/webhook');
@@ -50,14 +63,24 @@ describe('Webhook Server Endpoint', () => {
     const handler = webhookRoute.route.stack[webhookRoute.route.stack.length - 1].handle;
     await handler(req, res);
 
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    expect(mockSummarize).toHaveBeenCalledTimes(1);
+    // Verify immediate response
     expect(res.type).toHaveBeenCalledWith('text/xml');
     expect(res.send).toHaveBeenCalledWith(expect.stringContaining('<Response>'));
-    expect(res.send).toHaveBeenCalledWith(expect.stringContaining('<Message>*Tech*\n• news bullet</Message>'));
+    expect(res.send).toHaveBeenCalledWith(expect.stringContaining('<Message>Fetching your news digest... ⏳</Message>'));
+
+    // Wait a brief tick to let the background async worker execute
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(mockSummarize).toHaveBeenCalledTimes(1);
+    expect(mockCreate).toHaveBeenCalledWith({
+      body: 'Summary',
+      from: 'whatsapp:+14155238886',
+      to: 'whatsapp:+919167030145'
+    });
   });
 
-  it('should return a friendly error message in TwiML if feed fetching fails', async () => {
+  it('should send a WhatsApp error notification if background processing fails', async () => {
     mockFetch.mockRejectedValue(new Error('Feed error'));
 
     const { app } = require('../index');
@@ -65,8 +88,12 @@ describe('Webhook Server Endpoint', () => {
     const handler = webhookRoute.route.stack[webhookRoute.route.stack.length - 1].handle;
     await handler(req, res);
 
-    expect(res.type).toHaveBeenCalledWith('text/xml');
-    expect(res.send).toHaveBeenCalledWith(expect.stringContaining('<Response>'));
-    expect(res.send).toHaveBeenCalledWith(expect.stringContaining('<Message>Sorry, I had trouble fetching the news. Please try again later.</Message>'));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(mockCreate).toHaveBeenCalledWith({
+      body: 'Sorry, I had trouble generating your news digest. Please try again later.',
+      from: 'whatsapp:+14155238886',
+      to: 'whatsapp:+919167030145'
+    });
   });
 });

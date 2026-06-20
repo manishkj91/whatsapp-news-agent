@@ -64,7 +64,7 @@ describe('News Summarizer', () => {
     const summary = await generateNewsSummary(mockItems);
     expect(mockGenerateContent).toHaveBeenCalledTimes(1);
     expect(mockGenerateContent).toHaveBeenCalledWith({
-      model: 'gemini-3.5-flash',
+      model: 'gemini-2.5-flash',
       contents: expect.stringContaining('Google launches Gemini 1.5 Pro')
     });
     expect(summary).toBe('*Tech & AI*\n• Google announced new model updates.');

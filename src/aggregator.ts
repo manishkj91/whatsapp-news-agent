@@ -44,8 +44,8 @@ export async function fetchAndNormalizeFeeds(): Promise<NewsItem[]> {
     }
   }
 
-  // Sort by publication date descending (most recent first) and limit to top 15 items
+  // Sort by publication date descending (most recent first) and limit to top 6 items
   return allItems
     .sort((a, b) => b.pubDate.getTime() - a.pubDate.getTime())
-    .slice(0, 15);
+    .slice(0, 6);
 }
